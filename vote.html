@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>QOHMS | Secure Voter Portal · Queen of Martyrs</title>
+  <!-- Firebase SDKs (same config as admin) -->
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js"
+      }
+    }
+  </script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-dark: #0a0c12;
+      --bg-card: #11141c;
+      --border-dim: rgba(255,255,255,0.08);
+      --cyan-glow: #00d4ff;
+      --purple-glow: #a855f7;
+      --success-green: #10b981;
+      --danger-red: #ef4444;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --radius-xl: 28px;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      background: radial-gradient(circle at 10% 30%, #0f172a, #020617);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      position: relative;
+    }
+
+    /* animated particles effect */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(rgba(0,212,255,0.15) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      opacity: 0.3;
+    }
+
+    .vote-container {
+      max-width: 560px;
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border-dim);
+      border-radius: var(--radius-xl);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 25px 45px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,212,255,0.1);
+      overflow: hidden;
+      transition: transform 0.25s ease;
+      animation: floatUp 0.5s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+    }
+
+    @keyframes floatUp {
+      from {
+        opacity: 0;
+        transform: translateY(35px) scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* header */
+    .vote-header {
+      background: linear-gradient(135deg, #0e1622, #070b12);
+      padding: 1.6rem 1.8rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border-dim);
+    }
+
+    .vote-header h1 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #fff, var(--cyan-glow), var(--purple-glow));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      letter-spacing: -0.3px;
+    }
+
+    .vote-header p {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .badge {
+      background: rgba(0,212,255,0.12);
+      padding: 0.2rem 0.7rem;
+      border-radius: 40px;
+      font-size: 0.65rem;
+      font-weight: 500;
+      color: var(--cyan-glow);
+    }
+
+    /* main content */
+    .vote-body {
+      padding: 2rem 1.8rem;
+    }
+
+    /* step containers */
+    .step {
+      transition: opacity 0.2s ease;
+    }
+
+    .step.hidden {
+      display: none;
+    }
+
+    /* code input area */
+    .code-input-group {
+      margin-bottom: 1.8rem;
+    }
+
+    .code-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+
+    .voter-code-field {
+      width: 100%;
+      padding: 1rem 1.2rem;
+      background: #0a0f1a;
+      border: 1.5px solid var(--border-dim);
+      border-radius: var(--radius-md);
+      font-size: 1.3rem;
+      font-family: 'Space Mono', 'Courier New', monospace;
+      text-align: center;
+      letter-spacing: 4px;
+      color: var(--text-primary);
+      transition: all 0.2s;
+    }
+
+    .voter-code-field:focus {
+      outline: none;
+      border-color: var(--cyan-glow);
+      box-shadow: 0 0 0 3px rgba(0,212,255,0.2);
+    }
+
+    /* buttons */
+    .btn {
+      width: 100%;
+      padding: 0.9rem 1rem;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: 0.2s;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: linear-gradient(95deg, var(--cyan-glow), #0088cc);
+      color: #000;
+      box-shadow: 0 4px 12px rgba(0,212,255,0.25);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.05);
+      box-shadow: 0 10px 25px rgba(0,212,255,0.3);
+    }
+
+    .btn-success {
+      background: linear-gradient(95deg, var(--success-green), #059669);
+      color: white;
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border-dim);
+      color: var(--text-secondary);
+    }
+
+    .btn-outline:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: var(--cyan-glow);
+      color: var(--cyan-glow);
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    /* candidate cards */
+    .candidate-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      margin: 1.5rem 0;
+    }
+
+    .candidate-card {
+      background: #0e1420;
+      border: 1.5px solid var(--border-dim);
+      border-radius: var(--radius-lg);
+      padding: 1rem 1.2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .candidate-card:hover {
+      background: #12182a;
+      transform: translateX(5px);
+      border-color: rgba(0,212,255,0.4);
+    }
+
+    .candidate-card.selected {
+      background: linear-gradient(135deg, #0f1a2f, #0a1020);
+      border-color: var(--cyan-glow);
+      box-shadow: 0 0 0 2px rgba(0,212,255,0.2), 0 6px 12px rgba(0,0,0,0.3);
+    }
+
+    .candidate-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .candidate-name {
+      font-weight: 700;
+      font-size: 1rem;
+      color: white;
+    }
+
+    .candidate-manifest {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .vote-count-badge {
+      background: rgba(0,212,255,0.1);
+      padding: 0.3rem 0.8rem;
+      border-radius: 40px;
+      font-size: 0.7rem;
+      font-family: monospace;
+      color: var(--cyan-glow);
+    }
+
+    .radio-marker {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid var(--border-dim);
+      background: transparent;
+      transition: 0.1s;
+    }
+
+    .candidate-card.selected .radio-marker {
+      background: var(--cyan-glow);
+      border-color: var(--cyan-glow);
+      box-shadow: inset 0 0 0 3px #0e1420;
+    }
+
+    /* active post badge */
+    .active-post-header {
+      background: rgba(16, 185, 129, 0.1);
+      border-left: 3px solid var(--success-green);
+      padding: 0.8rem 1rem;
+      border-radius: var(--radius-md);
+      margin-bottom: 1.5rem;
+      font-size: 0.85rem;
+    }
+
+    .success-screen {
+      text-align: center;
+      padding: 1rem 0;
+    }
+
+    .check-animation {
+      width: 70px;
+      height: 70px;
+      margin: 0 auto 1rem;
+      background: var(--success-green);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: pop 0.4s cubic-bezier(0.34, 1.2, 0.64, 1);
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0); opacity: 0; }
+      80% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    .check-animation svg {
+      width: 40px;
+      height: 40px;
+      stroke: white;
+      stroke-width: 3;
+      fill: none;
+    }
+
+    .message-box {
+      margin-top: 1rem;
+      padding: 0.8rem;
+      border-radius: var(--radius-md);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+
+    .error-msg {
+      background: rgba(239,68,68,0.1);
+      border-left: 3px solid var(--danger-red);
+      color: #fecaca;
+    }
+
+    .info-msg {
+      background: rgba(0,212,255,0.08);
+      border-left: 3px solid var(--cyan-glow);
+      color: var(--text-primary);
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(0,0,0,0.2);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .ballot-section-header {
+      margin: 1.8rem 0 0.8rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-dim);
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--cyan-glow);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .candidate-card.selected .radio-marker {
+      background: var(--cyan-glow);
+      border-color: var(--cyan-glow);
+      box-shadow: inset 0 0 0 3px #0e1420;
+    }
+
+    footer {
+      padding: 1rem;
+      text-align: center;
+      font-size: 0.65rem;
+      color: var(--text-secondary);
+      border-top: 1px solid var(--border-dim);
+    }
+  </style>
+</head>
+<body>
+
+<div class="vote-container" id="voteApp">
+  <div class="vote-header">
+    <h1>🗳️ VOTER NEXUS</h1>
+    <p>Queen of Martyrs High School · Digital Ballot <span class="badge">ONE-TIME CODE</span></p>
+  </div>
+  <div class="vote-body" id="voteBody">
+    <!-- STEP 1: CODE VERIFICATION -->
+    <div id="stepCode" class="step">
+      <div class="code-input-group">
+        <span class="code-label">🔐 ENTER YOUR UNIQUE VOTING CODE</span>
+        <input type="text" id="voterCodeInput" class="voter-code-field" placeholder="X7K9M2" maxlength="8" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="verifyBtn">🔓 VERIFY & UNLOCK BALLOT</button>
+      <div id="codeMessage" class="message-box info-msg" style="margin-top: 1.2rem;">
+        ⚡ Each code works only once. Your vote remains anonymous & encrypted.
+      </div>
+    </div>
+
+    <!-- STEP 2: VOTING INTERFACE -->
+    <div id="stepVoting" class="step hidden">
+      <div id="activePostDisplay" class="active-post-header">
+        <span>🏛️ Active Election Post · Loading ...</span>
+      </div>
+      <div id="candidatesContainer" class="candidate-list"></div>
+      <div class="btn-group">
+        <button class="btn btn-outline" id="backToCodeBtn">↺ Cancel</button>
+        <button class="btn btn-outline" id="prevPostBtn" style="display: none;">← Previous</button>
+        <button class="btn btn-primary" id="nextPostBtn">Next Position →</button>
+        <button class="btn btn-success" id="submitVoteBtn">🗳️ CAST VOTE</button>
+      </div>
+      <div id="votingFeedback"></div>
+    </div>
+
+    <!-- STEP 3: SUCCESS -->
+    <div id="stepSuccess" class="step hidden">
+      <div class="success-screen">
+        <div class="check-animation">
+          <svg viewBox="0 0 24 24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+        <h3 style="font-size: 1.6rem; margin-bottom: 0.5rem;">VOTE RECORDED</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Your voice shapes the future of our school.</p>
+        <button class="btn btn-outline" id="voteAgainBtn">✓ RETURN HOME</button>
+      </div>
+    </div>
+  </div>
+  <footer>
+    🔒 Secure Digital Ballot · STEM Innovations · Transparent & Immutable
+  </footer>
+</div>
+
+<script type="module">
+  import { initializeApp } from "firebase/app";
+  import { getFirestore, doc, getDoc, updateDoc, runTransaction, collection, query, getDocs, serverTimestamp } from "firebase/firestore";
+
+  // Firebase config (matches admin system)
+  const firebaseConfig = {
+    apiKey: "AIzaSyCrP90qHmgA5tnd8K2XglZ_Opp8vsWAffg",
+    authDomain: "pocket-money-pro-bef26.firebaseapp.com",
+    projectId: "pocket-money-pro-bef26",
+    storageBucket: "pocket-money-pro-bef26.firebasestorage.app",
+    messagingSenderId: "3482377371",
+    appId: "1:3482377371:web:a627dcfe45adc3e507ba3e"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // DOM elements
+  const stepCodeDiv = document.getElementById('stepCode');
+  const stepVotingDiv = document.getElementById('stepVoting');
+  const stepSuccessDiv = document.getElementById('stepSuccess');
+  const verifyBtn = document.getElementById('verifyBtn');
+  const voterCodeInput = document.getElementById('voterCodeInput');
+  const codeMessageDiv = document.getElementById('codeMessage');
+  const candidatesContainer = document.getElementById('candidatesContainer');
+  const submitVoteBtn = document.getElementById('submitVoteBtn');
+  const backToCodeBtn = document.getElementById('backToCodeBtn');
+  const voteAgainBtn = document.getElementById('voteAgainBtn');
+  const activePostDisplay = document.getElementById('activePostDisplay');
+  const votingFeedback = document.getElementById('votingFeedback');
+
+  let allElectionPosts = [];   // stores all post objects
+  let verifiedCodeValue = null; // the actual code string that was validated
+  let selections = {};         // { postId: candidateId }
+  let currentPostIndex = 0;    // New: tracks the current post being displayed
+
+  // Helper: show toast-like message inside voting step
+  function showFeedback(msg, isError = false) {
+    if (!votingFeedback) return;
+    votingFeedback.innerHTML = `<div class="message-box ${isError ? 'error-msg' : 'info-msg'}" style="margin-top: 0.8rem;">${msg}</div>`;
+    setTimeout(() => {
+      if (votingFeedback.innerHTML.includes(msg)) votingFeedback.innerHTML = '';
+    }, 4000);
+  }
+
+  function showCodeMessage(msg, isError = false) {
+    codeMessageDiv.innerHTML = `<div class="message-box ${isError ? 'error-msg' : 'info-msg'}">${msg}</div>`;
+    if (isError) {
+      setTimeout(() => {
+        if (codeMessageDiv.innerHTML.includes(msg)) codeMessageDiv.innerHTML = '⚡ Each code works only once. Your vote remains anonymous & encrypted.';
+      }, 3500);
+    }
+  }
+
+  // reset voting UI
+  function resetVotingUI() {
+    selections = {}; // Clear all selections
+    if (candidatesContainer) candidatesContainer.innerHTML = '';
+    if (votingFeedback) votingFeedback.innerHTML = '';
+  }
+
+  // Fetch all available election posts
+  async function fetchAllElectionPosts() {
+    try {
+      const postsCol = collection(db, "posts");
+      const snap = await getDocs(postsCol);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (err) {
+      console.error("fetchAllElectionPosts error:", err);
+      return [];
+    }
+  }
+
+  // load candidates & populate voting UI
+  async function loadVotingInterface(posts, postIndex) {
+    if (!posts || posts.length === 0) {
+      activePostDisplay.innerHTML = `<span>⚠️ No election posts available. Please contact admin.</span>`;
+      submitVoteBtn.disabled = true;
+      candidatesContainer.innerHTML = '<div class="message-box error-msg">❌ No active post available.</div>';
+      return false;
+    }
+
+    allElectionPosts = posts;
+    currentPostIndex = postIndex;
+
+    const currentPost = posts[currentPostIndex];
+    const totalPosts = posts.length;
+
+    activePostDisplay.innerHTML = `
+      <span>🏛️ <strong>${escapeHtml(currentPost.title)}</strong> · Position ${currentPostIndex + 1} of ${totalPosts}</span>
+      ${currentPost.description ? `<br><small style="opacity:0.7;">${escapeHtml(currentPost.description)}</small>` : ''}
+    `;
+
+    const candidates = currentPost.candidates || [];
+
+    if (candidates.length === 0) {
+      candidatesContainer.innerHTML = '<div class="message-box error-msg">⚠️ No candidates registered for this post. Voting is not possible.</div>';
+      updateNavigationButtons(); // Update buttons even if no candidates
+      return false;
+    }
+
+    // render candidate cards
+    candidatesContainer.innerHTML = '';
+    candidates.forEach(candidate => {
+      const card = document.createElement('div');
+      card.className = 'candidate-card';
+      // Highlight if this candidate was previously selected for this post
+      if (selections[currentPost.id] === candidate.id) {
+        card.classList.add('selected');
+      }
+      card.setAttribute('data-post', currentPost.id);
+      card.setAttribute('data-cand', candidate.id);
+
+      card.innerHTML = `
+        <div class="candidate-info">
+          <span class="candidate-name">${escapeHtml(candidate.name)}</span>
+          <span class="candidate-manifest">${escapeHtml(candidate.manifesto || 'Committed to excellence & integrity')}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="radio-marker"></div>
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        document.querySelectorAll(`.candidate-card[data-post="${currentPost.id}"]`).forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selections[currentPost.id] = candidate.id;
+        updateNavigationButtons(); // Update buttons when a selection is made
+      });
+      candidatesContainer.appendChild(card);
+    });
+    updateNavigationButtons(); // Manage button visibility and text
+    return true;
+  }
+
+  // step switcher
+  function showStep(stepName) {
+    stepCodeDiv.classList.add('hidden');
+    stepVotingDiv.classList.add('hidden');
+    stepSuccessDiv.classList.add('hidden');
+    if (stepName === 'code') stepCodeDiv.classList.remove('hidden');
+    if (stepName === 'voting') stepVotingDiv.classList.remove('hidden');
+    if (stepName === 'success') stepSuccessDiv.classList.remove('hidden');
+  }
+
+  // New function to manage button states
+  function updateNavigationButtons() {
+    const totalPosts = allElectionPosts.length;
+    const isLastPost = currentPostIndex === totalPosts - 1;
+    const isFirstPost = currentPostIndex === 0;
+    const currentPost = allElectionPosts[currentPostIndex];
+    const hasSelection = selections[currentPost.id] !== undefined;
+
+    // Back/Cancel buttons
+    document.getElementById('backToCodeBtn').style.display = isFirstPost ? 'block' : 'none';
+    document.getElementById('prevPostBtn').style.display = isFirstPost ? 'none' : 'block';
+    document.getElementById('prevPostBtn').disabled = isFirstPost;
+
+    // Next/Submit buttons
+    if (isLastPost) {
+      document.getElementById('nextPostBtn').style.display = 'none';
+      document.getElementById('submitVoteBtn').style.display = 'block';
+      document.getElementById('submitVoteBtn').disabled = !hasSelection;
+    } else {
+      document.getElementById('nextPostBtn').style.display = 'block';
+      document.getElementById('submitVoteBtn').style.display = 'none';
+      document.getElementById('nextPostBtn').disabled = !hasSelection;
+    }
+  }
+
+  // main verification logic: check code existence, unused, and active election
+  verifyBtn.addEventListener('click', async () => {
+    const rawCode = voterCodeInput.value.trim().toUpperCase();
+    if (!rawCode) {
+      showCodeMessage('❌ Please enter your voting code.', true);
+      return;
+    }
+    verifyBtn.disabled = true;
+    verifyBtn.innerHTML = '<span class="spinner"></span> Validating...';
+    
+    try {
+      // 1) check code document
+      const codeRef = doc(db, "codes", rawCode);
+      const codeSnap = await getDoc(codeRef);
+      if (!codeSnap.exists()) {
+        showCodeMessage('❌ Invalid code. No matching voting credential found.', true);
+        verifyBtn.disabled = false;
+        verifyBtn.innerHTML = '🔓 VERIFY & UNLOCK BALLOT';
+        return;
+      }
+      const codeData = codeSnap.data();
+      if (codeData.used === true) {
+        showCodeMessage('🚫 This voting code has already been used. Each code is one-time only.', true);
+        verifyBtn.disabled = false;
+        verifyBtn.innerHTML = '🔓 VERIFY & UNLOCK BALLOT';
+        return;
+      }
+      
+      // 2) fetch all posts
+      const allPosts = await fetchAllElectionPosts();
+      if (!allPosts || allPosts.length === 0) {
+        showCodeMessage('⚠️ No active election is currently open. Please contact school administration.', true);
+        verifyBtn.disabled = false;
+        verifyBtn.innerHTML = '🔓 VERIFY & UNLOCK BALLOT';
+        return;
+      }
+      
+      // code valid + active election exists → proceed to voting step
+      verifiedCodeValue = rawCode;
+      currentPostIndex = 0; // Start from the first post
+      await loadVotingInterface(allPosts, currentPostIndex);
+      showStep('voting');
+      showCodeMessage('✅ Code verified! Select your preferred candidate below.', false);
+      voterCodeInput.value = '';
+      
+    } catch (err) {
+      console.error("Verification error:", err);
+      showCodeMessage(`❌ Network or database error: ${err.message}. Try again.`, true);
+    } finally {
+      verifyBtn.disabled = false;
+      verifyBtn.innerHTML = '🔓 VERIFY & UNLOCK BALLOT';
+    }
+  });
+
+  // Submit vote using transaction to ensure atomic update (code used + vote increment)
+  submitVoteBtn.addEventListener('click', async () => {
+    // Ensure a selection is made for the current (last) post
+    const currentPost = allElectionPosts[currentPostIndex];
+    if (!selections[currentPost.id]) {
+      showFeedback('❗ Please select a candidate for this position.', true);
+      return;
+    }
+    const requiredPostCount = allElectionPosts.length;
+    if (!verifiedCodeValue) {
+      showFeedback('Session expired. Please restart.', true);
+      showStep('code');
+      return;
+    }
+
+    submitVoteBtn.disabled = true;
+    submitVoteBtn.innerHTML = '<span class="spinner"></span> SECURING VOTE...';
+    
+    try {
+      await runTransaction(db, async (transaction) => {
+        // 1) re-validate code not used
+        const codeRef = doc(db, "codes", verifiedCodeValue);
+        const codeSnap = await transaction.get(codeRef);
+        if (!codeSnap.exists()) throw new Error("Code no longer exists.");
+        if (codeSnap.data().used) throw new Error("Code already used in another session.");
+        
+        // 2) Read: Get all post documents needed for updates
+        const postRefs = {};
+        const postSnaps = {};
+        for (const postId of Object.keys(selections)) {
+          postRefs[postId] = doc(db, "posts", postId);
+          postSnaps[postId] = await transaction.get(postRefs[postId]);
+          if (!postSnaps[postId].exists()) {
+            // If a post is somehow deleted during the voting process, we can skip it
+            // or throw an error to halt the transaction. For voting, skipping might be safer.
+            console.warn(`Post ${postId} not found during transaction, skipping.`);
+          }
+        }
+
+        // 3) Process: Prepare all updates in memory
+        const updates = [];
+        for (const [postId, candId] of Object.entries(selections)) {
+          const postSnap = postSnaps[postId];
+          if (postSnap && postSnap.exists()) { // Ensure post exists before processing
+            const postData = postSnap.data();
+            let candidates = postData.candidates || [];
+            const idx = candidates.findIndex(c => c.id === candId);
+            if (idx !== -1) {
+              const updatedCandidates = [...candidates];
+              updatedCandidates[idx] = {
+                ...updatedCandidates[idx],
+                votes: (updatedCandidates[idx].votes || 0) + 1
+              };
+              updates.push({ ref: postRefs[postId], data: { candidates: updatedCandidates } });
+            } else {
+              console.warn(`Candidate ${candId} not found in post ${postId}, skipping update.`);
+            }
+          }
+        }
+
+        // 4) Write: Apply all post updates
+        for (const update of updates) {
+          transaction.update(update.ref, update.data);
+        }
+        
+        // 5) Write: Mark code as used
+        transaction.update(codeRef, { used: true, usedAt: serverTimestamp() });
+      });
+      
+      showStep('success');
+      // reset local state
+      verifiedCodeValue = null;
+      selections = {}; // Clear all selections
+      currentPostIndex = 0; // Reset post index
+      
+    } catch (err) {
+      console.error("Vote submission error:", err);
+      let friendlyMsg = err.message || "Vote could not be recorded. Ensure your code hasn't been used or contact admin.";
+      if (friendlyMsg.includes("already used")) friendlyMsg = "⚠️ This code has already been used. Each code is one-time only.";
+      showFeedback(`❌ ${friendlyMsg}`, true);
+      // Re-enable buttons and update state if an error occurs
+      updateNavigationButtons();
+    } finally {
+      submitVoteBtn.disabled = false;
+      submitVoteBtn.innerHTML = '🗳️ CAST VOTE';
+      // if error stays in voting, we keep step; if success, we switched.
+    }
+  });
+
+  // New: Previous Post button
+  document.getElementById('prevPostBtn').addEventListener('click', () => {
+    if (currentPostIndex > 0) {
+      currentPostIndex--;
+      loadVotingInterface(allElectionPosts, currentPostIndex);
+    }
+  });
+
+  // New: Next Post button
+  document.getElementById('nextPostBtn').addEventListener('click', () => {
+    const currentPost = allElectionPosts[currentPostIndex];
+    if (!selections[currentPost.id]) {
+      showFeedback('❗ Please select a candidate for this position before proceeding.', true);
+      return;
+    }
+
+    if (currentPostIndex < allElectionPosts.length - 1) {
+      currentPostIndex++;
+      loadVotingInterface(allElectionPosts, currentPostIndex);
+    } else {
+      // This case should ideally not be reached if buttons are managed correctly,
+      // as submitVoteBtn would be visible instead.
+      showFeedback('You are on the last post. Please cast your vote.', true);
+      updateNavigationButtons();
+    }
+  });
+
+  // Back to code (cancel voting session)
+  backToCodeBtn.addEventListener('click', () => {
+    // reset all voting state
+    verifiedCodeValue = null;
+    selections = {};
+    resetVotingUI();
+    currentPostIndex = 0; // Reset post index
+    showStep('code');
+    voterCodeInput.value = '';
+    showCodeMessage('Session cancelled. You can re-enter a valid code.', false);
+  });
+
+  // After success, "Return Home" goes back to code entry
+  voteAgainBtn.addEventListener('click', () => {
+    resetVotingUI();
+    showStep('code');
+    currentPostIndex = 0; // Reset post index
+    voterCodeInput.value = '';
+    verifiedCodeValue = null; // Clear verified code
+    codeMessageDiv.innerHTML = '⚡ Each code works only once. Your vote remains anonymous & encrypted.';
+  });
+
+  // Helper to prevent XSS
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+      if (m === '&') return '&amp;';
+      if (m === '<') return '&lt;';
+      if (m === '>') return '&gt;';
+      return m;
+    });
+  }
+
+  // initial check: pre-fetch nothing, just show code step. but we can warmup: not needed.
+  // Also ensure focus on load
+  voterCodeInput.focus();
+
+  // optional: listen for enter key on code input
+  voterCodeInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      verifyBtn.click();
+    }
+  });
+
+  // small style to hidden class
+</script>
+</body>
+</html>
